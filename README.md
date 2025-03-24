@@ -80,8 +80,8 @@ podcast-text-extractor/
 ├── app.py                 # Main application
 ├── requirements.txt       # Dependencies
 ├── README.md              # This file
-└── assets/                # Optional assets
-    └── banner.png
+
+
 🤝 Contributing
 Contributions welcome! Please follow these steps:
 
