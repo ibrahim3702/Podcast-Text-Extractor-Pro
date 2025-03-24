@@ -1,0 +1,4 @@
+steps:
+  - name: Run tests
+    env:
+      GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
