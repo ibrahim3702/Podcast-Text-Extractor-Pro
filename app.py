@@ -24,7 +24,36 @@ FFMPEG_PATH = "/usr/bin/ffmpeg"  # Standard path in Streamlit Cloud
 AudioSegment.converter = FFMPEG_PATH
 AudioSegment.ffmpeg = FFMPEG_PATH
 AudioSegment.ffprobe = f"{FFMPEG_PATH}probe"  # For ffprobe
-GEMINI_API_KEY = st.secrets["GOOGLE_API_KEY"]
+# Replace your Gemini initialization with this bulletproof version:
+
+# Method 1: Try Streamlit secrets first
+GEMINI_API_KEY = None
+
+if 'GOOGLE_API_KEY' in st.secrets:
+    GEMINI_API_KEY = st.secrets['GOOGLE_API_KEY']
+    st.success("Loaded API key from Streamlit secrets")
+else:
+    # Method 2: Try environment variables
+    import os
+    GEMINI_API_KEY = os.getenv('GOOGLE_API_KEY')
+    if GEMINI_API_KEY:
+        st.info("Loaded API key from environment variables")
+    else:
+        # Method 3: Direct input (for debugging)
+        st.warning("API key not found in secrets or environment variables")
+        GEMINI_API_KEY = st.text_input("Enter Google API Key (temporary solution):")
+        if not GEMINI_API_KEY:
+            st.error("API key required - configure secrets or enter manually")
+            st.stop()
+
+# Configure Gemini
+try:
+    genai.configure(api_key=GEMINI_API_KEY)
+    model = genai.GenerativeModel('gemini-2.0-flash')
+    st.balloons()  # Visual confirmation of successful load
+except Exception as e:
+    st.error(f"Gemini configuration failed: {str(e)}")
+    st.stop()
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel('gemini-2.0-flash')
 
