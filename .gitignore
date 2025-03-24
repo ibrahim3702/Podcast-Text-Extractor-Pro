@@ -19,4 +19,4 @@ Thumbs.db
 
 # Audio cache
 *.mp3
-*.wav
+*.wav.streamlit/secrets.toml
