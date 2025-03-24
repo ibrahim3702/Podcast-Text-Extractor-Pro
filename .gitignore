@@ -1,0 +1,22 @@
+# API keys and secrets
+.env
+*.env
+.streamlit/secrets.toml
+
+# Python
+__pycache__/
+*.py[cod]
+*.py~
+*.swp
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+
+# Audio cache
+*.mp3
+*.wav
