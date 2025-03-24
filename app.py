@@ -6,9 +6,9 @@ import whisper
 from pydub import AudioSegment
 import google.generativeai as genai
 from datetime import datetime
-from functools import lru_cache
+import asyncio
 
-# Set page config
+# Set page config - moved to the top to prevent asyncio issues
 st.set_page_config(
     page_title="Podcast Text Extractor Pro",
     page_icon="🎙️",
@@ -16,46 +16,19 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Initialize Gemini
-# FFmpeg configuration
-FFMPEG_PATH = "/usr/bin/ffmpeg"  # Standard path in Streamlit Cloud
+# Initialize Gemini with direct API key input
+GEMINI_API_KEY = os.getenv("GOOGLE_API_KEY")
 
-# Configure pydub to use the correct FFmpeg path
-AudioSegment.converter = FFMPEG_PATH
-AudioSegment.ffmpeg = FFMPEG_PATH
-AudioSegment.ffprobe = f"{FFMPEG_PATH}probe"  # For ffprobe
-# Replace your Gemini initialization with this bulletproof version:
+if not GEMINI_API_KEY:
+    st.warning("Please enter your Google Gemini API Key in the sidebar to continue")
+    st.stop()
 
-# Method 1: Try Streamlit secrets first
-GEMINI_API_KEY = None
-
-if 'GOOGLE_API_KEY' in st.secrets:
-    GEMINI_API_KEY = st.secrets['GOOGLE_API_KEY']
-    st.success("Loaded API key from Streamlit secrets")
-else:
-    # Method 2: Try environment variables
-    import os
-    GEMINI_API_KEY = os.getenv('GOOGLE_API_KEY')
-    if GEMINI_API_KEY:
-        st.info("Loaded API key from environment variables")
-    else:
-        # Method 3: Direct input (for debugging)
-        st.warning("API key not found in secrets or environment variables")
-        GEMINI_API_KEY = st.text_input("Enter Google API Key (temporary solution):")
-        if not GEMINI_API_KEY:
-            st.error("API key required - configure secrets or enter manually")
-            st.stop()
-
-# Configure Gemini
 try:
     genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel('gemini-2.0-flash')
-    st.balloons()  # Visual confirmation of successful load
+    model = genai.GenerativeModel('gemini-2.0-flash')  # Using a more widely available model
 except Exception as e:
-    st.error(f"Gemini configuration failed: {str(e)}")
+    st.error(f"Failed to initialize Gemini: {str(e)}")
     st.stop()
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-2.0-flash')
 
 # Custom CSS for dark theme
 st.markdown("""
@@ -145,7 +118,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Sidebar for settings (rest of your existing sidebar code remains the same)
+# Sidebar for settings
 with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/2965/2965300.png", width=100)
     st.header("Settings")
@@ -178,15 +151,6 @@ with st.sidebar:
     - Large videos may take time to process
     """)
 
-# Main content area (rest of your existing code remains the same)
-col1, col2 = st.columns([3, 1])
-with col1:
-    url = st.text_input("Enter podcast/video URL:", placeholder="https://youtu.be/...")
-with col2:
-    st.write("")
-    st.write("")
-    process_btn = st.button("Extract Text", key="process")
-
 def download_audio(url):
     """Download audio from URL with improved error handling"""
     try:
@@ -198,11 +162,6 @@ def download_audio(url):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         output_template = os.path.join(temp_dir, f'podcast_{timestamp}.%(ext)s')
         
-        # Check FFmpeg exists (fixed indentation)
-        if not os.path.exists(FFMPEG_PATH):
-            st.error("FFmpeg not found at configured path")
-            return None
-            
         ydl_opts = {
             'format': 'bestaudio/best',
             'postprocessors': [{
@@ -210,8 +169,7 @@ def download_audio(url):
                 'preferredcodec': 'mp3',
                 'preferredquality': '192',
             }],
-            'ffmpeg_location': FFMPEG_PATH,  # Explicitly set FFmpeg path
-            'outtmpl': output_template,  # Use the template we created
+            'outtmpl': output_template,
             'quiet': True,
         }
         
@@ -232,8 +190,8 @@ def download_audio(url):
     except Exception as e:
         st.error(f"Download failed: {str(e)}")
         return None
-# Improved model loading with caching
-@st.cache_resource(show_spinner=False)
+
+@st.cache_resource
 def get_whisper_model(model_size="base"):
     """Cache the Whisper model to prevent repeated downloads"""
     try:
@@ -242,11 +200,48 @@ def get_whisper_model(model_size="base"):
         if not os.path.exists(model_path):
             os.makedirs(model_path)
         
-        # This will only download once per model size
         return whisper.load_model(model_size, download_root=model_path)
     except Exception as e:
         st.error(f"Model loading failed: {str(e)}")
         return None
+
+def transcribe_audio(audio_path, model_size="base"):
+    """Transcribe audio with proper file handling"""
+    try:
+        if not os.path.exists(audio_path):
+            st.error(f"Audio file not found at: {audio_path}")
+            return None
+        
+        model = get_whisper_model(model_size)
+        if model is None:
+            return None
+
+        # Use a temporary file for conversion if needed
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp_wav:
+            temp_wav_path = tmp_wav.name
+        
+        try:
+            if not audio_path.lower().endswith('.wav'):
+                audio = AudioSegment.from_file(audio_path)
+                audio.export(temp_wav_path, format="wav")
+                result = model.transcribe(temp_wav_path)
+            else:
+                import shutil
+                shutil.copy2(audio_path, temp_wav_path)
+                result = model.transcribe(temp_wav_path)
+            
+            return result["text"]
+        finally:
+            if os.path.exists(temp_wav_path):
+                try:
+                    os.unlink(temp_wav_path)
+                except:
+                    pass
+                    
+    except Exception as e:
+        st.error(f"Transcription failed: {str(e)}")
+        return None
+
 def generate_summary(text, length):
     """Generate summary using Gemini"""
     try:
@@ -271,78 +266,41 @@ def generate_summary(text, length):
     except Exception as e:
         st.error(f"Summary generation failed: {str(e)}")
         return None
-def transcribe_audio(audio_path, model_size="base"):
-    """Transcribe audio with proper file handling to avoid access conflicts"""
-    try:
-        # Verify file exists and is accessible
-        if not os.path.exists(audio_path):
-            st.error(f"Audio file not found at: {audio_path}")
-            return None
-        
-        # Load model (cached)
-        model = get_whisper_model(model_size)
-        if model is None:
-            return None
 
-        # Create a copy of the file to avoid access conflicts
-        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp_wav:
-            temp_wav_path = tmp_wav.name
-        
-        try:
-            # Convert to WAV format if needed
-            if not audio_path.lower().endswith('.wav'):
-                audio = AudioSegment.from_file(audio_path)
-                audio.export(temp_wav_path, format="wav")
-                transcription = model.transcribe(temp_wav_path)
-            else:
-                # If already WAV, just copy to our temp file
-                import shutil
-                shutil.copy2(audio_path, temp_wav_path)
-                transcription = model.transcribe(temp_wav_path)
-            
-            return transcription["text"]
-        finally:
-            # Ensure the temp file is deleted even if errors occur
-            if os.path.exists(temp_wav_path):
-                try:
-                    os.unlink(temp_wav_path)
-                except PermissionError:
-                    # If still locked, schedule for deletion on program exit
-                    import atexit
-                    def cleanup():
-                        if os.path.exists(temp_wav_path):
-                            os.unlink(temp_wav_path)
-                    atexit.register(cleanup)
-                    
-    except Exception as e:
-        st.error(f"Transcription failed: {str(e)}")
-        return None
+# Main content area
+col1, col2 = st.columns([3, 1])
+with col1:
+    url = st.text_input("Enter podcast/video URL:", placeholder="https://youtu.be/...")
+with col2:
+    st.write("")
+    st.write("")
+    process_btn = st.button("Extract Text", key="process")
 
 if process_btn:
     if not url:
         st.warning("Please enter a URL")
     else:
         with st.spinner("Initializing..."):
-            # Download audio
             audio_path = download_audio(url)
             
             if audio_path:
-                # Transcribe audio
                 text = transcribe_audio(audio_path, model_size)
                 
                 if text:
-                    # Clean up
-                    if os.path.exists(audio_path):
-                        os.remove(audio_path)
+                    # Clean up audio file
+                    try:
+                        if os.path.exists(audio_path):
+                            os.remove(audio_path)
+                    except:
+                        pass
                     
-                    # Display results in tabs with dark theme
+                    # Display results
                     tab1, tab2, tab3 = st.tabs(["Transcript", "Summary", "Stats"])
                     
                     with tab1:
                         st.subheader("Full Transcript")
                         st.text_area("Transcript", text, height=400, label_visibility="collapsed")
                         
-                        # Download buttons
                         st.download_button(
                             label="Download Transcript",
                             data=text,
@@ -350,7 +308,6 @@ if process_btn:
                             mime="text/plain"
                         )
                     
-                    # Generate and show summary
                     summary = generate_summary(text, summary_length)
                     
                     with tab2:
