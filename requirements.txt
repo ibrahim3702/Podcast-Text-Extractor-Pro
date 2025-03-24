@@ -1,0 +1,6 @@
+streamlit
+yt-dlp
+openai-whisper
+pydub
+google-generativeai
+ffmpeg-python
