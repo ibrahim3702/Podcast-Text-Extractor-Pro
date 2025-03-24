@@ -17,7 +17,14 @@ st.set_page_config(
 )
 
 # Initialize Gemini
-GEMINI_API_KEY = os.getenv("GOOGLE_API_KEY")  # Replace with your actual API key
+# FFmpeg configuration
+FFMPEG_PATH = "/usr/bin/ffmpeg"  # Standard path in Streamlit Cloud
+
+# Configure pydub to use the correct FFmpeg path
+AudioSegment.converter = FFMPEG_PATH
+AudioSegment.ffmpeg = FFMPEG_PATH
+AudioSegment.ffprobe = f"{FFMPEG_PATH}probe"  # For ffprobe
+GEMINI_API_KEY = st.secrets["GOOGLE_API_KEY"]
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel('gemini-2.0-flash')
 
@@ -163,6 +170,10 @@ def download_audio(url):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         output_template = os.path.join(temp_dir, f'podcast_{timestamp}.%(ext)s')
         
+       if not os.path.exists(FFMPEG_PATH):
+            st.error("FFmpeg not found at configured path")
+            return None
+            
         ydl_opts = {
             'format': 'bestaudio/best',
             'postprocessors': [{
@@ -170,9 +181,9 @@ def download_audio(url):
                 'preferredcodec': 'mp3',
                 'preferredquality': '192',
             }],
-            'outtmpl': output_template,
+            'ffmpeg_location': FFMPEG_PATH,  # Explicitly set FFmpeg path
+            'outtmpl': os.path.join(tempfile.gettempdir(), f'podcast_{datetime.now().strftime("%Y%m%d_%H%M%S")}.%(ext)s'),
             'quiet': True,
-            'verbose': True  # For debugging
         }
         
         with youtube_dl.YoutubeDL(ydl_opts) as ydl:
