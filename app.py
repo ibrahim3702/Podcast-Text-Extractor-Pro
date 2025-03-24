@@ -8,7 +8,7 @@ import google.generativeai as genai
 from datetime import datetime
 import asyncio
 
-# Set page config - moved to the top to prevent asyncio issues
+
 st.set_page_config(
     page_title="Podcast Text Extractor Pro",
     page_icon="🎙️",
@@ -16,7 +16,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Initialize Gemini with direct API key input
 GEMINI_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 if not GEMINI_API_KEY:
@@ -25,12 +24,12 @@ if not GEMINI_API_KEY:
 
 try:
     genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel('gemini-2.0-flash')  # Using a more widely available model
+    model = genai.GenerativeModel('gemini-2.0-flash')  
 except Exception as e:
     st.error(f"Failed to initialize Gemini: {str(e)}")
     st.stop()
 
-# Custom CSS for dark theme
+
 st.markdown("""
 <style>
     /* Main background */
@@ -109,7 +108,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# App title and description
+
 st.title("🎙️ Podcast Text Extractor Pro")
 st.markdown("""
 <div style='background-color: rgba(20, 23, 30, 0.7); padding: 15px; border-radius: 5px; margin-bottom: 20px; border: 1px solid #444'>
@@ -118,7 +117,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Sidebar for settings
+
 with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/2965/2965300.png", width=100)
     st.header("Settings")
@@ -154,11 +153,11 @@ with st.sidebar:
 def download_audio(url):
     """Download audio from URL with improved error handling"""
     try:
-        # Create temp directory if it doesn't exist
+        
         temp_dir = tempfile.gettempdir()
         os.makedirs(temp_dir, exist_ok=True)
         
-        # Generate unique filename with timestamp
+        
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         output_template = os.path.join(temp_dir, f'podcast_{timestamp}.%(ext)s')
         
@@ -176,11 +175,11 @@ def download_audio(url):
         with youtube_dl.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             
-            # Get the actual downloaded filename
+            
             filename = ydl.prepare_filename(info)
             audio_path = filename.replace('.webm', '.mp3').replace('.m4a', '.mp3')
             
-            # Verify file exists before returning
+            
             if os.path.exists(audio_path):
                 return audio_path
             else:
@@ -195,7 +194,7 @@ def download_audio(url):
 def get_whisper_model(model_size="base"):
     """Cache the Whisper model to prevent repeated downloads"""
     try:
-        # Check if model is already downloaded
+        
         model_path = os.path.join(os.path.expanduser("~"), ".cache", "whisper")
         if not os.path.exists(model_path):
             os.makedirs(model_path)
@@ -216,7 +215,7 @@ def transcribe_audio(audio_path, model_size="base"):
         if model is None:
             return None
 
-        # Use a temporary file for conversion if needed
+        
         with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp_wav:
             temp_wav_path = tmp_wav.name
         
@@ -267,7 +266,7 @@ def generate_summary(text, length):
         st.error(f"Summary generation failed: {str(e)}")
         return None
 
-# Main content area
+
 col1, col2 = st.columns([3, 1])
 with col1:
     url = st.text_input("Enter podcast/video URL:", placeholder="https://youtu.be/...")
@@ -287,14 +286,14 @@ if process_btn:
                 text = transcribe_audio(audio_path, model_size)
                 
                 if text:
-                    # Clean up audio file
+                    
                     try:
                         if os.path.exists(audio_path):
                             os.remove(audio_path)
                     except:
                         pass
                     
-                    # Display results
+                    
                     tab1, tab2, tab3 = st.tabs(["Transcript", "Summary", "Stats"])
                     
                     with tab1:
@@ -327,7 +326,7 @@ if process_btn:
                         st.subheader("Statistics")
                         word_count = len(text.split())
                         char_count = len(text)
-                        duration = len(text.split()) / 130  # Approx words per minute
+                        duration = len(text.split()) / 130  
                         
                         st.metric("Word Count", f"{word_count:,}")
                         st.metric("Character Count", f"{char_count:,}")
@@ -335,7 +334,7 @@ if process_btn:
                         
                         st.info("Note: Duration estimation assumes 130 words per minute speech rate")
 
-# Footer
+
 st.markdown("""
 <div class="footer">
     Podcast Text Extractor Pro | Powered by Whisper and Google Gemini
