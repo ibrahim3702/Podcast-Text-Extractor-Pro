@@ -158,7 +158,6 @@ with col2:
     st.write("")
     process_btn = st.button("Extract Text", key="process")
 
-# [Rest of your existing functions (download_audio, get_whisper_model, transcribe_audio, generate_summary) remain unchanged]
 def download_audio(url):
     """Download audio from URL with improved error handling"""
     try:
@@ -170,7 +169,8 @@ def download_audio(url):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         output_template = os.path.join(temp_dir, f'podcast_{timestamp}.%(ext)s')
         
-       if not os.path.exists(FFMPEG_PATH):
+        # Check FFmpeg exists (fixed indentation)
+        if not os.path.exists(FFMPEG_PATH):
             st.error("FFmpeg not found at configured path")
             return None
             
@@ -182,7 +182,7 @@ def download_audio(url):
                 'preferredquality': '192',
             }],
             'ffmpeg_location': FFMPEG_PATH,  # Explicitly set FFmpeg path
-            'outtmpl': os.path.join(tempfile.gettempdir(), f'podcast_{datetime.now().strftime("%Y%m%d_%H%M%S")}.%(ext)s'),
+            'outtmpl': output_template,  # Use the template we created
             'quiet': True,
         }
         
